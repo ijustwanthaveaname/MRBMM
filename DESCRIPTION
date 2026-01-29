@@ -1,0 +1,51 @@
+Package: BMM
+Type: Package
+Title: Bayesian Mixture Model for Mendelian Randomization
+Version: 1.0.0
+Date: 2024-01-28
+Authors@R: c(
+    person("Your", "Name", 
+           email = "your.email@university.edu", 
+           role = c("aut", "cre"),
+           comment = c(ORCID = "0000-0000-0000-0000"))
+    )
+Description: Implements a robust Bayesian mixture model for Mendelian 
+    randomization that explicitly models horizontal pleiotropy. Supports 
+    both 3-component and 4-component models with automatic model selection 
+    via LOO-CV. Includes Weighted Mode initialization (Hartwig et al. 2017) 
+    and comprehensive GWAS data harmonization with local plink.
+License: MIT + file LICENSE
+URL: https://github.com/your-username/BMM
+BugReports: https://github.com/your-username/BMM/issues
+Depends: 
+    R (>= 4.0.0)
+Imports:
+    cmdstanr,
+    posterior,
+    bayesplot,
+    loo,
+    MASS,
+    mvtnorm,
+    matrixStats,
+    mclust,
+    future,
+    future.apply,
+    data.table,
+    dplyr,
+    tidyr,
+    readr,
+    ggplot2,
+    glue,
+    MCMCpack
+Suggests:
+    TwoSampleMR,
+    ieugwasr,
+    MR.CUE,
+    testthat (>= 3.0.0),
+    knitr,
+    rmarkdown
+SystemRequirements: CmdStan (>= 2.29.0), plink
+Encoding: UTF-8
+LazyData: true
+RoxygenNote: 7.2.3
+VignetteBuilder: knitr
