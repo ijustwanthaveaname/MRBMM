@@ -3,10 +3,10 @@
 # Uses local plink + reference panel for proxy SNP search
 ################################################################################
 #' Find Proxy SNPs Using Local Plink and Reference Panel for Data Harmonization
-#' 
+#'
 #' Exactly matches the get_proxy function from real data evaluation
 #' Uses local plink to find LD proxies for missing SNPs
-#' 
+#'
 #' @importFrom magrittr %>%
 #' @param exp_dat Exposure data (TwoSampleMR formatted)
 #' @param otc_dat Outcome data (TwoSampleMR formatted)
@@ -14,18 +14,18 @@
 #' @param bin_plink Path to plink executable
 #' @param ref_panel Path to reference panel (without .bed/.bim/.fam extension)
 #' @param outfile Output file prefix for temporary files (default: "proxy")
-#' 
+#'
 #' @return Outcome data frame with proxy SNPs added
-#' 
+#'
 #' @keywords internal
-get_proxy <- function(exp_dat, otc_dat, r2 = 0.8, 
-                     bin_plink, ref_panel, outfile = "proxy") {
-  bin_plink  <- normalizePath(bin_plink, mustWork = TRUE)
+get_proxy <- function(exp_dat, otc_dat, r2 = 0.8,
+                      bin_plink, ref_panel, outfile = "proxy") {
+  bin_plink <- normalizePath(bin_plink, mustWork = TRUE)
   ref_panel <- path.expand(ref_panel)
   cat("  Searching for proxy SNPs...\n")
   exp.snp <- exp_dat$SNP
   otc.snp <- otc_dat$SNP
-  
+
   # Initialize proxy columns
   otc_dat <- otc_dat %>% dplyr::mutate(
     target_snp.outcome = NA,
@@ -36,118 +36,132 @@ get_proxy <- function(exp_dat, otc_dat, r2 = 0.8,
     proxy_a2.outcome = NA,
     proxy.outcome = FALSE
   )
-  
+
   # Find missing SNPs
   miss.expsnps <- setdiff(exp.snp, intersect(exp.snp, otc.snp))
   remain.otcsnps <- setdiff(otc.snp, intersect(exp.snp, otc.snp))
-  
+
   cat(sprintf("    Found %d SNPs missing in outcome\n", length(miss.expsnps)))
-  
+
   if (length(miss.expsnps) == 0) {
     cat("    No proxy search needed\n")
     return(otc_dat %>% dplyr::filter(SNP %in% exp.snp))
   }
-  
+
   proxy_count <- 0
-  
+
   # Search for proxy for each missing SNP
   for (miss.snp in miss.expsnps) {
     # Run plink to find LD proxies
     outfilepath <- shQuote(outfile)
-    system(glue::glue("{bin_plink} --bfile {ref_panel} --r2 --ld-snp {miss.snp} ",
-                "--ld-window 1000000 --ld-window-kb 1000 --ld-window-r2 {r2} ",
-                "--out {outfilepath}_{miss.snp}_proxy"), 
-           ignore.stdout = TRUE, ignore.stderr = TRUE)
-    
+    system(
+      glue::glue(
+        "{bin_plink} --bfile {ref_panel} --r2 --ld-snp {miss.snp} ",
+        "--ld-window 1000000 --ld-window-kb 1000 --ld-window-r2 {r2} ",
+        "--out {outfilepath}_{miss.snp}_proxy"
+      ),
+      ignore.stdout = TRUE, ignore.stderr = TRUE
+    )
+
     # Read LD results
     ld_file <- glue::glue("{outfile}_{miss.snp}_proxy.ld")
     if (!file.exists(ld_file)) {
       next
     }
-    
+
     proxies.df <- readr::read_table(ld_file, show_col_types = FALSE)
-    
+
     # Select best proxy (highest R2) that's in outcome data
-    top_proxies.df <- proxies.df %>% 
-      dplyr::filter(SNP_A != SNP_B, SNP_B %in% remain.otcsnps) %>% 
-      dplyr::arrange(-R2) %>% 
-      head(1) %>% 
+    top_proxies.df <- proxies.df %>%
+      dplyr::filter(SNP_A != SNP_B, SNP_B %in% remain.otcsnps) %>%
+      dplyr::arrange(-R2) %>%
+      head(1) %>%
       dplyr::rename(RS_Number = SNP_B)
-    
+
     # Clean up temporary files
     file.remove(ld_file)
     log_file <- glue::glue("{outfile}_{miss.snp}_proxy.log")
     if (file.exists(log_file)) file.remove(log_file)
-    
+
     if (nrow(top_proxies.df) == 0) {
       next
     }
-    
+
     # Found a proxy!
     proxy_count <- proxy_count + 1
     rsid <- top_proxies.df$RS_Number
-    
+
     # Get alleles from exposure
     effect_allele.exposure <- (exp_dat %>% dplyr::filter(SNP == miss.snp) %>% head(1))$effect_allele.exposure
     other_allele.exposure <- (exp_dat %>% dplyr::filter(SNP == miss.snp) %>% head(1))$other_allele.exposure
-    
+
     # Get allele information from plink
     allele_info <- system(
-      glue::glue('{bin_plink} --bfile {ref_panel} --ld {miss.snp} {rsid} | ',
-           'grep "In phase" | awk \'{{print substr($NF,1,1)"\\n"substr($NF,4,1)"\\n"',
-           'substr($NF,2,1)"\\n"substr($NF,5,1)}}\''), 
+      glue::glue(
+        "{bin_plink} --bfile {ref_panel} --ld {miss.snp} {rsid} | ",
+        'grep "In phase" | awk \'{{print substr($NF,1,1)"\\n"substr($NF,4,1)"\\n"',
+        'substr($NF,2,1)"\\n"substr($NF,5,1)}}\''
+      ),
       intern = TRUE
     )
-    
+
     if (length(allele_info) != 4) {
       next
     }
-    
+
     target.allele1 <- allele_info[1]
     target.allele2 <- allele_info[2]
     proxy.allele1 <- allele_info[3]
     proxy.allele2 <- allele_info[4]
-    
+
     # Check allele consistency
-    if (!identical(sort(c(target.allele1, target.allele2)), 
-                   sort(c(effect_allele.exposure, other_allele.exposure)))) {
+    if (!identical(
+      sort(c(target.allele1, target.allele2)),
+      sort(c(effect_allele.exposure, other_allele.exposure))
+    )) {
       next
     }
-    
+
     # Update outcome data with proxy information
     otc_dat[otc_dat$SNP == rsid, ]$target_snp.outcome <- miss.snp
     otc_dat[otc_dat$SNP == rsid, ]$proxy_snp.outcome <- rsid
-    otc_dat[otc_dat$SNP == rsid, ]$target_a1.outcome <- 
-      ifelse(otc_dat[otc_dat$SNP == rsid, ]$effect_allele.outcome == proxy.allele1, 
-             target.allele1, target.allele2)
-    otc_dat[otc_dat$SNP == rsid, ]$target_a2.outcome <- 
-      ifelse(otc_dat[otc_dat$SNP == rsid, ]$other_allele.outcome == proxy.allele2, 
-             target.allele2, target.allele1)
-    otc_dat[otc_dat$SNP == rsid, ]$proxy_a1.outcome <- 
-      ifelse(otc_dat[otc_dat$SNP == rsid, ]$effect_allele.outcome == proxy.allele1, 
-             proxy.allele1, proxy.allele2)
-    otc_dat[otc_dat$SNP == rsid, ]$proxy_a2.outcome <- 
-      ifelse(otc_dat[otc_dat$SNP == rsid, ]$other_allele.outcome == proxy.allele2, 
-             proxy.allele2, proxy.allele1)
+    otc_dat[otc_dat$SNP == rsid, ]$target_a1.outcome <-
+      ifelse(otc_dat[otc_dat$SNP == rsid, ]$effect_allele.outcome == proxy.allele1,
+        target.allele1, target.allele2
+      )
+    otc_dat[otc_dat$SNP == rsid, ]$target_a2.outcome <-
+      ifelse(otc_dat[otc_dat$SNP == rsid, ]$other_allele.outcome == proxy.allele2,
+        target.allele2, target.allele1
+      )
+    otc_dat[otc_dat$SNP == rsid, ]$proxy_a1.outcome <-
+      ifelse(otc_dat[otc_dat$SNP == rsid, ]$effect_allele.outcome == proxy.allele1,
+        proxy.allele1, proxy.allele2
+      )
+    otc_dat[otc_dat$SNP == rsid, ]$proxy_a2.outcome <-
+      ifelse(otc_dat[otc_dat$SNP == rsid, ]$other_allele.outcome == proxy.allele2,
+        proxy.allele2, proxy.allele1
+      )
     otc_dat[otc_dat$SNP == rsid, ]$proxy.outcome <- TRUE
-    otc_dat[otc_dat$SNP == rsid, ]$effect_allele.outcome <- 
-      ifelse(otc_dat[otc_dat$SNP == rsid, ]$effect_allele.outcome == proxy.allele1, 
-             target.allele1, target.allele2)
-    otc_dat[otc_dat$SNP == rsid, ]$other_allele.outcome <- 
-      ifelse(otc_dat[otc_dat$SNP == rsid, ]$other_allele.outcome == proxy.allele2, 
-             target.allele2, target.allele1)
+    otc_dat[otc_dat$SNP == rsid, ]$effect_allele.outcome <-
+      ifelse(otc_dat[otc_dat$SNP == rsid, ]$effect_allele.outcome == proxy.allele1,
+        target.allele1, target.allele2
+      )
+    otc_dat[otc_dat$SNP == rsid, ]$other_allele.outcome <-
+      ifelse(otc_dat[otc_dat$SNP == rsid, ]$other_allele.outcome == proxy.allele2,
+        target.allele2, target.allele1
+      )
     otc_dat[otc_dat$SNP == rsid, ]$SNP <- miss.snp
   }
-  
+
   cat(sprintf("    Successfully found %d proxy SNPs\n", proxy_count))
-  
+
   return(otc_dat %>% dplyr::filter(SNP %in% exp.snp))
 }
 
 #' Read GWAS Summary Statistics
-#' 
+#'
 #' Read and standardize GWAS data matching real data evaluation format
-#' 
+#'
 #' @param file_path Path to GWAS file
 #' @param snp_col Column name for SNP ID
 #' @param beta_col Column name for beta (can be NA if using OR)
@@ -161,11 +175,11 @@ get_proxy <- function(exp_dat, otc_dat, r2 = 0.8,
 #' @param or_col Column name for OR (if beta_col is NA)
 #' @param or_lower_col Column name for OR lower CI (if beta_col is NA)
 #' @param or_upper_col Column name for OR upper CI (if beta_col is NA)
-#' 
+#'
 #' @return Standardized data frame with columns: SNP, EA, OA, BETA, SE, P, EAF, CHR, POS
-#' 
+#'
 #' @export
-#' 
+#'
 #' @examples
 #' \dontrun{
 #' # GWAS with beta and SE
@@ -179,7 +193,7 @@ get_proxy <- function(exp_dat, otc_dat, r2 = 0.8,
 #'   oa_col = "other_allele",
 #'   eaf_col = "eaf"
 #' )
-#' 
+#'
 #' # GWAS with OR and CI
 #' outcome <- read_gwas_data(
 #'   "outcome.txt",
@@ -193,16 +207,15 @@ get_proxy <- function(exp_dat, otc_dat, r2 = 0.8,
 #' )
 #' }
 read_gwas_data <- function(file_path,
-                          snp_col, beta_col = NA, se_col = NA, pval_col,
-                          ea_col, oa_col, eaf_col = NA,
-                          chr_col = NA, pos_col = NA,
-                          or_col = NA, or_lower_col = NA, or_upper_col = NA) {
-  
+                           snp_col, beta_col = NA, se_col = NA, pval_col,
+                           ea_col, oa_col, eaf_col = NA,
+                           chr_col = NA, pos_col = NA,
+                           or_col = NA, or_lower_col = NA, or_upper_col = NA) {
   cat(sprintf("Reading GWAS from: %s\n", file_path))
-  
+
   data <- data.table::fread(file_path)
   cat(sprintf("  Raw data: %d variants\n", nrow(data)))
-  
+
   # Build standardized data frame
   std_data <- data.frame(
     SNP = data[[snp_col]],
@@ -210,7 +223,7 @@ read_gwas_data <- function(file_path,
     OA = data[[oa_col]],
     stringsAsFactors = FALSE
   )
-  
+
   # Handle beta/SE or OR/CI
   if (!is.na(beta_col)) {
     std_data$BETA <- as.numeric(data[[beta_col]])
@@ -222,23 +235,23 @@ read_gwas_data <- function(file_path,
     std_data$BETA <- log(or_val)
     if (!is.na(se_col)) {
       std_data$SE <- as.numeric(data[[se_col]])
-    } else{
+    } else {
       std_data$SE <- (log(or_upper) - log(or_lower)) / (2 * 1.96)
     }
   } else {
     stop("Must provide either beta_col/se_col or or_col/or_lower_col/or_upper_col")
   }
-  
+
   # P-value
   std_data$P <- as.numeric(data[[pval_col]])
-  
+
   # EAF (optional)
   if (!is.na(eaf_col)) {
     std_data$EAF <- as.numeric(data[[eaf_col]])
   } else {
     std_data$EAF <- NA
   }
-  
+
   # CHR and POS (optional)
   if (!is.na(chr_col)) {
     std_data$CHR <- data[[chr_col]]
@@ -247,7 +260,7 @@ read_gwas_data <- function(file_path,
     std_data$CHR <- NA
     std_data$POS <- NA
   }
-  
+
   # Quality control
   std_data <- std_data %>%
     dplyr::filter(!is.na(SNP), !is.na(BETA), !is.na(SE), !is.na(P)) %>%
@@ -255,14 +268,14 @@ read_gwas_data <- function(file_path,
     dplyr::filter(is.finite(BETA), is.finite(SE), is.finite(P)) %>%
     dplyr::filter(SE > 0, P > 0, P <= 1) %>%
     dplyr::filter(stringr::str_detect(SNP, "^rs\\d+"))
-  
+
   cat(sprintf("  Clean data: %d variants\n", nrow(std_data)))
-  
+
   return(std_data)
 }
 
 #' Complete GWAS Harmonization Workflow
-#' 
+#'
 #' Performs complete harmonization matching real data evaluation:
 #' 1. Read GWAS data
 #' 2. Filter exposure SNPs by p-value
@@ -270,7 +283,7 @@ read_gwas_data <- function(file_path,
 #' 4. LD clumping with local reference panel
 #' 5. Proxy SNP search with local plink
 #' 6. Harmonization
-#' 
+#'
 #' @param exp_gwas Exposure GWAS data frame (from read_gwas_data)
 #' @param otc_gwas Outcome GWAS data frame (from read_gwas_data)
 #' @param exp_name Exposure trait name
@@ -284,17 +297,17 @@ read_gwas_data <- function(file_path,
 #' @param proxy_r2 Minimum r² for proxy SNPs (default: 0.8)
 #' @param temp_dir Temporary directory for plink output (default: tempdir())
 #' @param verbose Print progress messages (default: TRUE)
-#' 
+#'
 #' @return Harmonized data frame from TwoSampleMR::harmonise_data()
-#' 
+#'
 #' @export
-#' 
+#'
 #' @examples
 #' \dontrun{
 #' # Read GWAS data
 #' exposure <- read_gwas_data("exposure.txt", ...)
 #' outcome <- read_gwas_data("outcome.txt", ...)
-#' 
+#'
 #' # Harmonize
 #' harmonized <- harmonize_for_mr(
 #'   exp_gwas = exposure,
@@ -304,7 +317,7 @@ read_gwas_data <- function(file_path,
 #'   plink_bin = "/usr/bin/plink",
 #'   ref_panel = "/data/1kg_eur/EUR"
 #' )
-#' 
+#'
 #' # Extract for BMM
 #' bmm_data <- extract_bmm_data(harmonized)
 #' }
@@ -318,7 +331,6 @@ harmonize_for_mr <- function(exp_gwas, otc_gwas,
                              proxy_r2 = 0.8,
                              temp_dir = tempdir(),
                              verbose = TRUE) {
-  
   if (verbose) {
     cat("\n========================================\n")
     cat(sprintf("Analyzing: %s -> %s\n", exp_name, otc_name))
@@ -330,26 +342,26 @@ harmonize_for_mr <- function(exp_gwas, otc_gwas,
   if (!file.exists(plink_bin)) {
     stop(sprintf("Plink binary not found: %s", plink_bin))
   }
-  
+
   ref_panel_bed <- paste0(ref_panel, ".bed")
   if (!file.exists(ref_panel_bed)) {
     stop(sprintf("Reference panel not found: %s", ref_panel_bed))
   }
-  
+
   # === Step 2: Filter exposure by p-value ===
   if (verbose) cat(sprintf("Step 2: Filtering exposure SNPs (P < %.0e)...\n", pval_threshold))
-  
+
   exp_gwas_sig <- exp_gwas %>% dplyr::filter(P < pval_threshold)
-  
+
   if (verbose) cat(sprintf("  %d significant SNPs\n", nrow(exp_gwas_sig)))
-  
+
   if (nrow(exp_gwas_sig) < 3) {
     stop("Too few IVs (< 3)")
   }
-  
+
   # === Step 3: Format for TwoSampleMR ===
   if (verbose) cat("\nStep 3: Formatting data for TwoSampleMR...\n")
-  
+
   exp_dat <- TwoSampleMR::format_data(
     exp_gwas_sig,
     type = "exposure",
@@ -363,14 +375,14 @@ harmonize_for_mr <- function(exp_gwas, otc_gwas,
     chr_col = "CHR",
     pos_col = "POS"
   )
-  
+
   exp_dat <- exp_dat %>% dplyr::mutate(
     exposure = exp_name,
     id.exposure = exp_name
   )
-  
+
   if (verbose) cat(sprintf("  Exposure formatted: %d SNPs\n", nrow(exp_dat)))
-  
+
   otc_dat <- TwoSampleMR::format_data(
     otc_gwas,
     type = "outcome",
@@ -384,43 +396,46 @@ harmonize_for_mr <- function(exp_gwas, otc_gwas,
     chr_col = "CHR",
     pos_col = "POS"
   )
-  
+
   otc_dat <- otc_dat %>% dplyr::mutate(
     outcome = otc_name,
     id.outcome = otc_name
   )
-  
+
   if (verbose) cat(sprintf("  Outcome formatted: %d SNPs\n", nrow(otc_dat)))
-  
+
   # === Step 4: LD clumping ===
   if (verbose) cat("\nStep 4: LD clumping...\n")
-  
+
   rsid_pval_exp <- exp_dat %>%
     dplyr::select(SNP, pval.exposure) %>%
     dplyr::rename(rsid = SNP, pval = pval.exposure) %>%
     dplyr::filter(!is.na(rsid), nzchar(rsid))
-  
-  rsid_pval_exp.clump <- tryCatch({
-    ieugwasr::ld_clump_local(
-      rsid_pval_exp,
-      clump_kb = clump_kb,
-      clump_r2 = clump_r2,
-      clump_p = 1,
-      plink_bin = plink_bin,
-      bfile = ref_panel
-    )
-  }, error = function(e) {
-    stop(sprintf("Clumping failed: %s", e$message))
-  })
-  
+
+  rsid_pval_exp.clump <- tryCatch(
+    {
+      ieugwasr::ld_clump_local(
+        rsid_pval_exp,
+        clump_kb = clump_kb,
+        clump_r2 = clump_r2,
+        clump_p = 1,
+        plink_bin = plink_bin,
+        bfile = ref_panel
+      )
+    },
+    error = function(e) {
+      stop(sprintf("Clumping failed: %s", e$message))
+    }
+  )
+
   if (nrow(rsid_pval_exp.clump) == 0) {
     stop("No SNPs survived clumping")
   }
-  
+
   exp_dat <- exp_dat %>% dplyr::filter(SNP %in% rsid_pval_exp.clump$rsid)
-  
+
   if (verbose) cat(sprintf("  %d independent IVs after clumping\n", nrow(exp_dat)))
-  
+
   # === Step 5: Proxy SNP search ===
   if (use_proxy) {
     if (verbose) cat("\nStep 5: Searching for proxy SNPs...\n")
@@ -436,57 +451,83 @@ harmonize_for_mr <- function(exp_gwas, otc_gwas,
     if (verbose) cat("\nStep 5: Skipping proxy SNP search\n")
     otc_dat <- otc_dat %>% dplyr::filter(SNP %in% exp_dat$SNP)
   }
-  
+
   if (verbose) cat(sprintf("  Outcome SNPs available: %d\n", nrow(otc_dat)))
-  
+
   # === Step 6: Harmonization ===
+  precision_handler <- function(w) {
+    msg <- w$message
+
+    # 1. 精确匹配 EAF 转换警告
+    # 原句: "eaf column is not numeric. Coercing..." 或类似关于缺失的提示
+    if (grepl("eaf column is (not numeric|missing)", msg, ignore.case = TRUE)) {
+      message("Warning: EAF column is missing or invalid. Potential outlier SNP filtering step cannot be performed.")
+      if (exists("muffleWarning", where = "package:base")) {
+        invokeRestart("muffleWarning")
+      }
+    }
+
+    # 2. 精确匹配 readr 的空列填充警告
+    # 原句: "Missing column names filled in: 'X8' [8]"
+    else if (grepl("Missing column names filled in: 'X8'", msg)) {
+      invokeRestart("muffleWarning")
+    }
+  }
   if (verbose) cat("\nStep 6: Harmonizing data...\n")
-  
-  harmonised_dat <- TwoSampleMR::harmonise_data(exp_dat, otc_dat)
-  
+
+  harmonised_dat <- withCallingHandlers(
+    {
+      TwoSampleMR::harmonise_data(exp_dat, otc_dat)
+    },
+    warning = precision_handler
+  )
+
   if (is.null(harmonised_dat) || nrow(harmonised_dat) == 0) {
     stop("Harmonization failed")
   }
-  
+
   if (verbose) {
-    cat(sprintf("  Harmonized: %d SNPs (mr_keep = %d)\n",
-                nrow(harmonised_dat), sum(harmonised_dat$mr_keep)))
+    cat(sprintf(
+      "  Harmonized: %d SNPs (mr_keep = %d)\n",
+      nrow(harmonised_dat), sum(harmonised_dat$mr_keep)
+    ))
     cat(sprintf("    Palindromic SNPs: %d\n", sum(harmonised_dat$palindromic, na.rm = TRUE)))
     cat(sprintf("    Ambiguous SNPs: %d\n", sum(harmonised_dat$ambiguous, na.rm = TRUE)))
     if (use_proxy) {
-      cat(sprintf("    Proxy SNPs used: %d\n",
-                  sum(!is.na(harmonised_dat$proxy.outcome) & harmonised_dat$proxy.outcome, na.rm = TRUE)))
+      cat(sprintf(
+        "    Proxy SNPs used: %d\n",
+        sum(!is.na(harmonised_dat$proxy.outcome) & harmonised_dat$proxy.outcome, na.rm = TRUE)
+      ))
     }
     cat(sprintf("    SNPs to keep: %d\n", sum(harmonised_dat$mr_keep)))
   }
-  
+
   if (sum(harmonised_dat$mr_keep) < 3) {
     stop("Too few SNPs (< 3) for MR analysis")
   }
-  
+
   if (verbose) cat("\n  Analysis complete!\n\n")
-  
+
   return(harmonised_dat)
 }
 
 #' Extract Data for BMM Analysis
-#' 
+#'
 #' Extract cleaned data from harmonized output for BMM
-#' 
+#'
 #' @param harmonised_dat Output from harmonize_for_mr()
-#' 
+#'
 #' @return List with beta_X, beta_Y, se_X, se_Y, snps
-#' 
+#'
 #' @export
 extract_bmm_data <- function(harmonised_dat) {
-  
   # Filter to mr_keep only
   mr_data <- harmonised_dat %>% dplyr::filter(mr_keep)
-  
+
   if (nrow(mr_data) < 3) {
     stop("Fewer than 3 SNPs available for analysis")
   }
-  
+
   list(
     beta_X = mr_data$beta.exposure,
     beta_Y = mr_data$beta.outcome,

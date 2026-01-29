@@ -1,0 +1,55 @@
+PLINK v1.90b7.1 64-bit (18 Oct 2023)
+Options in effect:
+  --bfile /home/yww/publicdata/g1000_eur/g1000_eur
+  --ld rs72902576 rs7567653
+
+Hostname: songs-Super-Server
+Working directory: /home/yww/MRBMM
+Start time: Fri Jan 30 01:03:53 2026
+
+Random number seed: 1769706233
+515552 MB RAM detected; reserving 257776 MB for main workspace.
+22665064 variants loaded from .bim file.
+503 people (240 males, 263 females) loaded from .fam.
+Using 1 thread (no multithreaded calculations invoked).
+Before main variant filters, 503 founders and 0 nonfounders present.
+Calculating allele frequencies... done.
+Total genotyping rate is in [0.9999995, 1).
+22665064 variants and 503 people pass filters and QC.
+Note: No phenotypes present.
+
+--ld rs72902576 rs7567653:
+Multiple haplotype phasing solutions; sample size, HWE, or random mating
+assumption may be violated.
+
+HWE exact test p-values
+-----------------------
+   rs72902576: 1
+   rs7567653: 1
+
+Solution #1:
+   R-sq = 0.00141713     D' = 1
+
+   Haplotype     Frequency    Expectation under LE
+   ---------     ---------    --------------------
+          GA      0                       0.001316
+          TA      0.036779                0.035463
+          GG      0.035785                0.034469
+          TG      0.927435                0.928752
+
+   In phase alleles are GG/TA
+
+Solution #2:
+   R-sq = 0.97197        D' = 1
+
+   Haplotype     Frequency    Expectation under LE
+   ---------     ---------    --------------------
+          GA      0.035785                0.001316
+          TA      0.000994                0.035463
+          GG      0                       0.034469
+          TG      0.963221                0.928752
+
+   In phase alleles are GA/TG
+
+
+End time: Fri Jan 30 01:04:02 2026
