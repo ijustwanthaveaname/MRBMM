@@ -51,8 +51,8 @@ set_cmdstan_path("PATH_TO_YOUR_CONDA_ENV/bin/cmdstan")
  # Usually: ~/miniconda3/bin/cmdstan 
 ```
 #### Install plink and reference panel for clumping and proxy SNP searching
-**PLINK v1.9**: Download from: https://www.cog-genomics.org/plink/
-**1000 genome phase 3 reference panel**: Download from: https://cncr.nl/research/magma/
+**PLINK v1.9**: Download from: https://www.cog-genomics.org/plink/  
+**1000 genome phase 3 reference panel**: Download from: https://cncr.nl/research/magma/  
 Unpack reference panel `gunzip g1000_EUR.zip`.
 
 

@@ -15,7 +15,7 @@
 .onAttach <- function(libname, pkgname) {
   packageStartupMessage(
     "BMM: Bayesian Mixture Model for Mendelian Randomization\n",
-    "Version 1.0.0\n",
+    "Version 0.0.1\n",
     "\n",
     "This package requires external dependencies for full functionality.\n",
     "Run the following after loading the package:\n",
@@ -23,7 +23,7 @@
     "  install_bmm_dependencies()   # Install non-CRAN dependencies\n",
     "  check_stan_setup()           # Verify cmdstanr and CmdStan\n",
     "\n",
-    "See ?run_mr_model_comparison for usage.\n"
+    "See github.com/ijustwanthaveaname/MRBMM/README.md for usage.\n"
   )
 }
 

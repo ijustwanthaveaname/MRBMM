@@ -1,8 +1,8 @@
 Package: MRBMM
 Type: Package
 Title: Bayesian Mixture Model for Mendelian Randomization
-Version: 1.0.0
-Date: 2024-01-28
+Version: 0.0.1
+Date: 2026-01-28
 Authors@R: c(
     person("Wang", "Yinwei", 
            email = "b627926373@gmail.com", 
@@ -33,6 +33,7 @@ Imports:
     dplyr,
     tidyr,
     readr,
+    magrittr,
     ggplot2,
     glue,
     MCMCpack
