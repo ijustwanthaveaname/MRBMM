@@ -10,7 +10,8 @@ MRBMM implements a robust Bayesian mixture model for Mendelian Randomization tha
 
 ✅ **Explicit pleiotropy modeling** - Handles UHP and CHP with 3/4-component models  
 ✅ **Automatic model selection** - LOO-CV based comparison  
-✅ **Comprehensive harmonization** - Local plink-based proxy SNP search; harmonized data can be used directly with TwoSampleMR's `mr()` function to run multiple MR methods
+✅ **Comprehensive harmonization** - Local plink-based proxy SNP search.
+✅ **Support TwoSampleMR** harmonized data can be used directly with TwoSampleMR's `mr()` function to run multiple MR methods
 ✅ **Parallel processing** - Multi-core MCMC sampling  
 
 ## Installation
