@@ -21,7 +21,7 @@
 get_proxy <- function(exp_dat, otc_dat, r2 = 0.8, 
                      bin_plink, ref_panel, outfile = "proxy") {
   bin_plink  <- normalizePath(bin_plink, mustWork = TRUE)
-  ref_panel <- path.expand(ref_panel, mustWork = TRUE)
+  ref_panel <- path.expand(ref_panel)
   cat("  Searching for proxy SNPs...\n")
   exp.snp <- exp_dat$SNP
   otc.snp <- otc_dat$SNP
