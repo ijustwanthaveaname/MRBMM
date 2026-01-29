@@ -220,7 +220,11 @@ read_gwas_data <- function(file_path,
     or_lower <- as.numeric(data[[or_lower_col]])
     or_upper <- as.numeric(data[[or_upper_col]])
     std_data$BETA <- log(or_val)
-    std_data$SE <- (log(or_upper) - log(or_lower)) / (2 * 1.96)
+    if (!is.na(se_col)) {
+      std_data$SE <- as.numeric(data[[se_col]])
+    } else{
+      std_data$SE <- (log(or_upper) - log(or_lower)) / (2 * 1.96)
+    }
   } else {
     stop("Must provide either beta_col/se_col or or_col/or_lower_col/or_upper_col")
   }
