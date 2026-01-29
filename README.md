@@ -23,7 +23,7 @@ MRBMM implements a robust Bayesian mixture model for Mendelian Randomization tha
 devtools::install_github("ijustwanthaveaname/MRBMM")
 
 # Or from source
-R CMD INSTALL MRBMM_1.0.0.tar.gz
+R CMD INSTALL MRBMM_0.0.1.tar.gz
 ```
 
 ### Prerequisites
