@@ -1,6 +1,6 @@
 # BMM: Bayesian Mixture Model for Mendelian Randomization
 
-[![R-CMD-check](https://github.com/your-username/BMM/workflows/R-CMD-check/badge.svg)](https://github.com/your-username/BMM/actions)
+[![R-CMD-check](https://github.com/ijustwanthaveaname/BMM/workflows/R-CMD-check/badge.svg)](https://github.com/ijustwanthaveaname/BMM/actions)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 ## Overview
@@ -155,7 +155,7 @@ Number of SNPs used: 127
 ## Documentation
 
 - [Complete Workflow](examples/complete_workflow.R) - End-to-end analysis
-- [Function Reference](https://your-username.github.io/BMM/reference/) - All functions
+- [Function Reference](https://ijustwanthaveaname.github.io/BMM/reference/) - All functions
 - User Guide (coming soon)
 
 ## Method
