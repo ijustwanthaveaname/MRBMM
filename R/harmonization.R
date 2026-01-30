@@ -69,7 +69,14 @@ get_proxy <- function(exp_dat, otc_dat, r2 = 0.8,
       next
     }
 
-    proxies.df <- readr::read_table(ld_file, show_col_types = FALSE)
+    proxies.df <- withCallingHandlers(readr::read_table(ld_file, show_col_types = FALSE), warning = function(w) {
+      msg <- w$message
+      # 忽略 X8 列名填充警告
+      if (grepl("Missing column names filled in: 'X8'", msg, fixed = TRUE)) {
+        invokeRestart("muffleWarning")
+        }
+      }
+    )
 
     # Select best proxy (highest R2) that's in outcome data
     top_proxies.df <- proxies.df %>%
