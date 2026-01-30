@@ -376,7 +376,8 @@ read_gwas_data <- function(file_path,
 #' bmm_data <- extract_bmm_data(harmonized)
 #' }
 harmonize_for_mr <- function(exp_gwas, otc_gwas,
-                             exp_name, otc_name,
+                             exp_name = "exposure",
+                             otc_name = "outcome",
                              plink_bin, ref_panel,
                              pval_threshold = 5e-8,
                              clump_kb = 10000,
@@ -408,6 +409,33 @@ harmonize_for_mr <- function(exp_gwas, otc_gwas,
       # 对于其他警告，保持原样显示
       # 可以在此添加其他特定的警告处理
     }
+  }
+  
+  # 内部消息处理函数
+  message_handler <- function(m) {
+    msg <- m$message
+    
+    # 1. 捕获 "No phenotype name specified" 消息并抑制
+    if (grepl("No phenotype name specified", msg, ignore.case = TRUE)) {
+      # 完全抑制，不输出任何消息
+      invokeRestart("muffleMessage")
+    }
+    # 2. 其他类型的消息，保持原样显示
+    else {
+      # 对于其他消息，保持原样显示
+      # 可以在此添加其他特定的消息处理
+    }
+  }
+  
+  # 检查并处理名称参数
+  if (missing(exp_name) || is.null(exp_name) || is.na(exp_name) || exp_name == "") {
+    exp_name <- "exposure"
+    if (verbose) message("Note: Using default exposure name: 'exposure'")
+  }
+  
+  if (missing(otc_name) || is.null(otc_name) || is.na(otc_name) || otc_name == "") {
+    otc_name <- "outcome"
+    if (verbose) message("Note: Using default outcome name: 'outcome'")
   }
   
   if (verbose) {
@@ -443,11 +471,15 @@ harmonize_for_mr <- function(exp_gwas, otc_gwas,
   # === Step 3: Format for TwoSampleMR ===
   if (verbose) cat("\nStep 3: Formatting data for TwoSampleMR...\n")
 
-  # 对 format_data 应用警告处理器
+  # 为 exposure 数据添加 phenotype 列
+  exp_gwas_sig_with_pheno <- exp_gwas_sig %>%
+    dplyr::mutate(phenotype = exp_name)
+
+  # 对 format_data 应用警告和消息处理器
   exp_dat <- withCallingHandlers(
     {
       TwoSampleMR::format_data(
-        exp_gwas_sig,
+        exp_gwas_sig_with_pheno,
         type = "exposure",
         snp_col = "SNP",
         beta_col = "BETA",
@@ -457,12 +489,15 @@ harmonize_for_mr <- function(exp_gwas, otc_gwas,
         eaf_col = "EAF",
         pval_col = "P",
         chr_col = "CHR",
-        pos_col = "POS"
+        pos_col = "POS",
+        phenotype_col = "phenotype"
       )
     },
-    warning = precision_handler
+    warning = precision_handler,
+    message = message_handler
   )
 
+  # 确保 exposure 和 id.exposure 正确设置
   exp_dat <- exp_dat %>% dplyr::mutate(
     exposure = exp_name,
     id.exposure = exp_name
@@ -470,10 +505,14 @@ harmonize_for_mr <- function(exp_gwas, otc_gwas,
 
   if (verbose) cat(sprintf("  Exposure formatted: %d SNPs\n", nrow(exp_dat)))
 
+  # 为 outcome 数据添加 phenotype 列
+  otc_gwas_with_pheno <- otc_gwas %>%
+    dplyr::mutate(phenotype = otc_name)
+
   otc_dat <- withCallingHandlers(
     {
       TwoSampleMR::format_data(
-        otc_gwas,
+        otc_gwas_with_pheno,
         type = "outcome",
         snp_col = "SNP",
         beta_col = "BETA",
@@ -483,12 +522,15 @@ harmonize_for_mr <- function(exp_gwas, otc_gwas,
         eaf_col = "EAF",
         pval_col = "P",
         chr_col = "CHR",
-        pos_col = "POS"
+        pos_col = "POS",
+        phenotype_col = "phenotype"
       )
     },
-    warning = precision_handler
+    warning = precision_handler,
+    message = message_handler
   )
 
+  # 确保 outcome 和 id.outcome 正确设置
   otc_dat <- otc_dat %>% dplyr::mutate(
     outcome = otc_name,
     id.outcome = otc_name
@@ -553,7 +595,8 @@ harmonize_for_mr <- function(exp_gwas, otc_gwas,
     {
       TwoSampleMR::harmonise_data(exp_dat, otc_dat)
     },
-    warning = precision_handler
+    warning = precision_handler,
+    message = message_handler
   )
 
   if (is.null(harmonised_dat) || nrow(harmonised_dat) == 0) {
