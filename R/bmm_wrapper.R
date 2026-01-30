@@ -93,21 +93,7 @@ run_bmm_analysis <- function(beta_X, beta_Y, se_X, se_Y,
     use_parallel = use_parallel,
     ...
   )
-  
-  # Add S3 class
-  class(results$final_result) <- c("bmm_result", class(results$final_result))
-  
-  # Add data for printing
-  results$final_result$data <- list(
-    beta_X = beta_X,
-    beta_Y = beta_Y,
-    se_X = se_X,
-    se_Y = se_Y
-  )
-  results$final_result$rho_e <- rho_e
-  results$final_result$selected_model <- results$selected_model
-  
-  return(results$final_result)
+  return(results)
 }
 
 #' Compile BMM Stan Models

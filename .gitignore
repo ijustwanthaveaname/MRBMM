@@ -13,3 +13,4 @@ src/*.so
 src/*.dll
 output/
 temp/
+plink.log
